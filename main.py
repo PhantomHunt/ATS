@@ -122,12 +122,40 @@ def parse_resumes_and_jd(resume_folder: str, jd_file: str) -> Tuple[str, List[Di
     return job_description, resumes
 
 
-def get_scoring_weights():
-    with open('weightage_config.json', "r", encoding="utf-8") as file:
-        return json.load(file) 
+def get_scoring_weights() -> Dict[str, Any]:
+    """
+    Loads scoring weights from the 'weightage_config.json' file.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing scoring weight configurations.
+    
+    Raises:
+        FileNotFoundError: If the 'weightage_config.json' file is missing.
+        json.JSONDecodeError: If the file contains invalid JSON.
+    """
+    try:
+        with open("weightage_config.json", "r", encoding="utf-8") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        raise FileNotFoundError("Error: 'weightage_config.json' file not found.")
+    except json.JSONDecodeError:
+        raise ValueError("Error: Failed to parse 'weightage_config.json'. Ensure it contains valid JSON.")
 
 
 def analyze_resumes_with_llm(job_description: str, resumes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Analyzes resumes using an LLM by comparing them against a job description.
+
+    Args:
+        job_description (str): The job description text.
+        resumes (List[Dict[str, Any]]): A list of dictionaries containing parsed resume details.
+
+    Returns:
+        List[Dict[str, Any]]: A list of dictionaries containing the candidate name and analysis.
+
+    Raises:
+        ValueError: If the LLM response cannot be parsed or is missing expected content.
+    """
     results = []
     for resume in resumes:
         prompt = f"""
@@ -154,14 +182,29 @@ def analyze_resumes_with_llm(job_description: str, resumes: List[Dict[str, Any]]
                 {"role": "system", "content": "You are an expert in HR and recruitment."},
                 {"role": "user", "content": prompt}
             ],
-        temperature=0
+            temperature=0
         )
-        analysis = response.choices[0].message.content
+
+        try:
+            analysis = response.choices[0].message.content.strip()
+        except (AttributeError, IndexError):
+            raise ValueError("Error: Failed to retrieve analysis from LLM response.")
+
         results.append({"name": resume["name"], "analysis": analysis})
     return results
 
 
 def display(results: List[Dict[str, Any]]):
+    """
+    Saves the analysis of candidates to individual text files in the 'Analysis' folder.
+
+    Args:
+        results (List[Dict[str, Any]]): A list of dictionaries containing candidate details,
+                                         including 'name' and 'analysis'.
+    
+    This function creates an 'Analysis' folder (if it doesn't already exist), and saves 
+    each candidate's analysis in a separate `.txt` file, named after the candidate.
+    """
     os.makedirs("Analysis", exist_ok=True)
 
     for result in results:
